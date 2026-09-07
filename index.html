@@ -124,6 +124,22 @@
   }
   #upload-wrap label.file-btn:hover{ border-color:var(--cyan); color:var(--white); }
   #bg-file{ display:none; }
+  .approval-toggle{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    margin-top:10px;
+    font-size:12px;
+    font-weight:600;
+    color:var(--white);
+    cursor:pointer;
+  }
+  .approval-toggle input{
+    width:16px;
+    height:16px;
+    accent-color:var(--go);
+    cursor:pointer;
+  }
   .warn-note{
     margin-top:10px;
     font-size:11.5px;
@@ -254,7 +270,11 @@
     <div id="upload-wrap">
       <label class="file-btn" for="bg-file">Click to choose an image…</label>
       <input type="file" id="bg-file" accept="image/*">
-      <div class="warn-note">Custom backgrounds need approval by Bennys management before this ad is posted. That line is stamped onto the banner automatically.</div>
+      <div class="warn-note">Custom backgrounds need approval by Bennys management before this ad is posted. The approval line is shown on the banner until management approves it.</div>
+      <label class="approval-toggle">
+        <input type="checkbox" id="management-approved">
+        <span>Approved by management</span>
+      </label>
     </div>
   </section>
 
@@ -280,20 +300,8 @@
   </section>
 
   <section class="block">
-    <h2>On Every Banner</h2>
-    <div class="service-list">
-      <div class="service-row"><span class="dot"></span>Memberships Available</div>
-      <div class="service-row"><span class="dot"></span>Internals &amp; Body Repair</div>
-      <div class="service-row"><span class="dot"></span>Selling Tools &amp; Wax</div>
-    </div>
-    <div class="service-note">This lineup is fixed on every ad so it stays consistent across the crew.</div>
-    <div class="font-picker" id="service-font-picker">
-      <button class="font-opt active" data-font="Archivo" type="button" style="font-family:'Archivo',sans-serif;">Clean</button>
-      <button class="font-opt" data-font="Oswald" type="button" style="font-family:'Oswald',sans-serif;">Condensed</button>
-      <button class="font-opt" data-font="Bebas Neue" type="button" style="font-family:'Bebas Neue',sans-serif;">Poster</button>
-      <button class="font-opt" data-font="Poppins" type="button" style="font-family:'Poppins',sans-serif;">Bold</button>
-    </div>
-    <div class="hint">Font for the services line only — the rest of the banner stays as-is.</div>
+    <h2>Custom Stickers</h2>
+    <div class="hint">Coming soon</div>
   </section>
 
   <div id="download-block">
@@ -332,6 +340,7 @@ let state = {
   name: '',
   rank: '',
   serviceFont: 'Archivo',
+  managementApproved: false,
   tow: null,
   splatter: null,
 };
@@ -560,7 +569,7 @@ function draw(){
   }
 
   // ---- Custom background disclaimer ----
-  if (state.bgMode === 'custom' && state.customImage){
+  if (state.bgMode === 'custom' && state.customImage && !state.managementApproved){
     ctx.textAlign = 'center';
     ctx.font = "700 20px Archivo, sans-serif";
     const label = 'Custom background needs approval by management of Bennys';
@@ -581,6 +590,7 @@ const optDefault = document.getElementById('opt-default');
 const optCustom = document.getElementById('opt-custom');
 const uploadWrap = document.getElementById('upload-wrap');
 const bgFile = document.getElementById('bg-file');
+const managementApproved = document.getElementById('management-approved');
 const nameInput = document.getElementById('name-input');
 const rankInput = document.getElementById('rank-input');
 const towBtns = document.querySelectorAll('.tow-btn');
@@ -617,6 +627,11 @@ bgFile.addEventListener('change', (e) => {
     });
   };
   reader.readAsDataURL(file);
+});
+
+managementApproved.addEventListener('change', (e) => {
+  state.managementApproved = e.target.checked;
+  draw();
 });
 
 nameInput.addEventListener('input', (e) => {
