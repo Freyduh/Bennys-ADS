@@ -6,7 +6,7 @@
 <title>Bennys — Banner Maker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;700&family=Bebas+Neue&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600;700;800&family=Oswald:wght@500;700&family=Bebas+Neue&family=Poppins:wght@600;700&family=Teko:wght@500;700&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg-deep:#05070f;
@@ -245,7 +245,7 @@
     max-width:100%;
     max-height:100%;
   }
-  canvas#banner{ display:block; width:100%; height:auto; }
+  canvas#banner{ display:block; width:100%; height:auto; cursor:grab; }
 
   ::-webkit-scrollbar{ width:10px; }
   ::-webkit-scrollbar-track{ background:var(--panel); }
@@ -304,6 +304,39 @@
     <div class="hint">Coming soon</div>
   </section>
 
+  <section class="block">
+    <h2>Services Font</h2>
+    <div class="font-picker" id="service-font-picker">
+      <button class="font-opt active" data-font="Archivo" type="button" style="font-family:'Archivo',sans-serif;">Clean</button>
+      <button class="font-opt" data-font="Oswald" type="button" style="font-family:'Oswald',sans-serif;">Condensed</button>
+      <button class="font-opt" data-font="Bebas Neue" type="button" style="font-family:'Bebas Neue',sans-serif;">Poster</button>
+      <button class="font-opt" data-font="Poppins" type="button" style="font-family:'Poppins',sans-serif;">Bold</button>
+      <button class="font-opt" data-font="Teko" type="button" style="font-family:'Teko',sans-serif;">Tall</button>
+      <button class="font-opt" data-font="Rajdhani" type="button" style="font-family:'Rajdhani',sans-serif;">Sporty</button>
+    </div>
+    <div id="custom-font-wrap" style="margin-top:10px;">
+      <label class="file-btn" for="font-file">Upload your own font (.ttf/.otf/.woff)…</label>
+      <input type="file" id="font-file" accept=".ttf,.otf,.woff,.woff2">
+      <div class="hint" id="custom-font-status"></div>
+    </div>
+    <div class="hint">Font for the services line only — the rest of the banner stays as-is.</div>
+  </section>
+
+  <section class="block">
+    <h2>Phone Number</h2>
+    <button class="btn" id="phone-toggle" type="button">Add phone number</button>
+    <div id="phone-wrap" style="display:none; margin-top:10px;">
+      <input type="text" id="phone-input" placeholder="e.g. 555-0123" maxlength="20">
+    </div>
+    <div class="hint">Shown at the bottom of the banner as "CALL [number]" if you add one.</div>
+  </section>
+
+  <section class="block">
+    <h2>Layout</h2>
+    <div class="hint">Click and drag any element directly on the banner to reposition it.</div>
+    <button class="btn" id="reset-layout-btn" type="button" style="width:100%; margin-top:10px;">Reset Layout</button>
+  </section>
+
   <div id="download-block">
     <button id="download-btn" type="button">Download PNG (1920×1080)</button>
     <div id="download-sub">Saves exactly what you see on the right</div>
@@ -325,6 +358,8 @@ const SERVICE_FONTS = {
   'Oswald':     { family: 'Oswald',     weight: 700, base: 44 },
   'Bebas Neue': { family: 'Bebas Neue', weight: 400, base: 50 },
   'Poppins':    { family: 'Poppins',    weight: 700, base: 40 },
+  'Teko':       { family: 'Teko',       weight: 700, base: 52 },
+  'Rajdhani':   { family: 'Rajdhani',   weight: 700, base: 44 },
 };
 
 const canvas = document.getElementById('banner');
@@ -343,7 +378,20 @@ let state = {
   managementApproved: false,
   tow: null,
   splatter: null,
+  phoneEnabled: false,
+  phone: '',
+  positions: {},   // { key: {dx, dy} } drag offsets, keyed by draggable element
 };
+
+let dragKey = null;
+let dragStartMouse = null;
+let dragStartOffset = null;
+let hitRegions = []; // filled in during draw(), used for hit-testing drags
+
+function getOffset(key){
+  const o = state.positions[key];
+  return o || { dx: 0, dy: 0 };
+}
 
 function loadImage(src){
   return new Promise((resolve, reject) => {
@@ -476,22 +524,26 @@ function draw(){
   ctx.fillRect(0,0,W,H);
 
   // ---- LOGO, top right ----
+  hitRegions = [];
   if (state.logoImage){
     const logo = state.logoImage;
     const targetH = 220;
     const lw = logo.width * (targetH / logo.height);
-    const lx = W - lw - 64;
-    const ly = 48;
+    const off = getOffset('logo');
+    const lx = W - lw - 64 + off.dx;
+    const ly = 48 + off.dy;
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.55)';
     ctx.shadowBlur = 30;
     ctx.shadowOffsetY = 6;
     ctx.drawImage(logo, lx, ly, lw, targetH);
     ctx.restore();
+    hitRegions.push({ key:'logo', x:lx, y:ly, w:lw, h:targetH });
   }
 
   // ---- HEADLINE, centered ----
-  const centerX = W/2;
+  const headOff = getOffset('headline');
+  const centerX = W/2 + headOff.dx;
   const displayName = state.name.trim() ? state.name.trim().toUpperCase() : 'YOUR NAME';
   const displayRank = state.rank.trim() ? state.rank.trim().toUpperCase() : 'MECHANIC';
   const line1 = `${displayName},`;
@@ -505,12 +557,22 @@ function draw(){
   const headFont = Math.min(f1, f2, f3);
 
   const lineGap = headFont * 1.08;
-  let ly2 = 380;
+  let ly2 = 380 + headOff.dy;
+  let ly2Base = 380; // undragged reference, used so other elements don't follow the headline when it's dragged
+  const headTop = ly2 - headFont * 0.85;
   posterText(line1, centerX, ly2, headFont, { align:'center' });
-  ly2 += lineGap;
+  ly2 += lineGap; ly2Base += lineGap;
   posterText(line2, centerX, ly2, headFont, { align:'center', fill:'#37c6f0' });
-  ly2 += lineGap;
+  ly2 += lineGap; ly2Base += lineGap;
   posterText(line3, centerX, ly2, headFont, { align:'center' });
+  const headBottom = ly2 + headFont * 0.25;
+  ctx.font = `${headFont}px "Anton", sans-serif`;
+  const headMaxW = Math.max(
+    ctx.measureText(line1).width,
+    ctx.measureText(line2).width,
+    ctx.measureText(line3).width
+  );
+  hitRegions.push({ key:'headline', x: centerX - headMaxW/2 - 20, y: headTop - 10, w: headMaxW + 40, h: (headBottom - headTop) + 20 });
 
   // ---- SERVICES, single centered line under headline ----
   const services = ['Memberships Available', 'Internals & Body Repair', 'Selling Tools & Wax'];
@@ -524,13 +586,18 @@ function draw(){
     sFont -= 1;
     ctx.font = svcFontStr(sFont);
   }
-  const sy = ly2 + headFont * 0.62 + 56;
+  const svcOff = getOffset('services');
+  const svcCenterX = W/2 + svcOff.dx;
+  const sy = ly2Base + headFont * 0.62 + 56 + svcOff.dy;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
+  const svcMetrics = ctx.measureText(serviceLine);
+  const svcW = svcMetrics.width;
   ctx.fillStyle = 'rgba(3,5,12,0.85)';
-  ctx.fillText(serviceLine, centerX + 3, sy + 3);
+  ctx.fillText(serviceLine, svcCenterX + 3, sy + 3);
   ctx.fillStyle = '#f4f6fb';
-  ctx.fillText(serviceLine, centerX, sy);
+  ctx.fillText(serviceLine, svcCenterX, sy);
+  hitRegions.push({ key:'services', x: svcCenterX - svcW/2 - 16, y: sy - sFont * 0.85, w: svcW + 32, h: sFont * 1.1 });
 
   // ---- TOW STATUS, bottom right ----
   if (state.tow){
@@ -548,7 +615,8 @@ function draw(){
     const textH = ascent + descent;
 
     const padX = 22, padY = 18;
-    const boxRight = W - 62, boxBottom = H - 58;
+    const towOff = getOffset('tow');
+    const boxRight = W - 62 + towOff.dx, boxBottom = H - 58 + towOff.dy;
     const boxW = tw + padX * 2;
     const boxH = textH + padY * 2;
     const boxLeft = boxRight - boxW;
@@ -566,6 +634,37 @@ function draw(){
     ctx.fillText(label, boxRight - padX + 2, baselineY + 2);
     ctx.fillStyle = color;
     ctx.fillText(label, boxRight - padX, baselineY);
+    hitRegions.push({ key:'tow', x: boxLeft, y: boxTop, w: boxW, h: boxH });
+  }
+
+  // ---- PHONE NUMBER, under everything ----
+  if (state.phoneEnabled && state.phone.trim()){
+    const phoneText = `CALL ${state.phone.trim()}`;
+    const pf = fitFont(phoneText, 900, 46, 22);
+    ctx.font = `${pf}px "Anton", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    const phOff = getOffset('phone');
+    const px = W/2 + phOff.dx;
+    const py = H - 40 + phOff.dy;
+    const callLabel = 'CALL ';
+    const fullMetrics = ctx.measureText(phoneText);
+    const fullW = fullMetrics.width;
+    const ascent = fullMetrics.actualBoundingBoxAscent || pf * 0.74;
+    const descent = fullMetrics.actualBoundingBoxDescent || pf * 0.02;
+
+    ctx.fillStyle = 'rgba(3,5,12,0.85)';
+    ctx.fillText(phoneText, px + 2, py + 2);
+    // draw "CALL" in cyan and the number in white, overlaying the shadow above
+    const startX = px - fullW/2;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#37c6f0';
+    ctx.fillText(callLabel, startX, py);
+    const callW = ctx.measureText(callLabel).width;
+    ctx.fillStyle = '#f4f6fb';
+    ctx.fillText(state.phone.trim(), startX + callW, py);
+
+    hitRegions.push({ key:'phone', x: px - fullW/2 - 16, y: py - ascent - 6, w: fullW + 32, h: ascent + descent + 12 });
   }
 
   // ---- Custom background disclaimer ----
@@ -665,6 +764,106 @@ fontOpts.forEach(btn => {
     document.fonts.load(`700 40px "${state.serviceFont}"`).finally(draw);
   });
 });
+
+const fontFile = document.getElementById('font-file');
+const customFontStatus = document.getElementById('custom-font-status');
+fontFile.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const familyName = 'CustomUserFont';
+    const fontFace = new FontFace(familyName, ev.target.result);
+    fontFace.load().then((loaded) => {
+      document.fonts.add(loaded);
+      SERVICE_FONTS[familyName] = { family: familyName, weight: 400, base: 44 };
+      state.serviceFont = familyName;
+      fontOpts.forEach(b => b.classList.remove('active'));
+      customFontStatus.textContent = `Using "${file.name}" for the services line.`;
+      draw();
+    }).catch(() => {
+      customFontStatus.textContent = 'Could not load that font file — try a .ttf, .otf or .woff file.';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+const phoneToggle = document.getElementById('phone-toggle');
+const phoneWrap = document.getElementById('phone-wrap');
+const phoneInput = document.getElementById('phone-input');
+phoneToggle.addEventListener('click', () => {
+  state.phoneEnabled = !state.phoneEnabled;
+  phoneToggle.classList.toggle('active', state.phoneEnabled);
+  phoneWrap.style.display = state.phoneEnabled ? 'block' : 'none';
+  if (state.phoneEnabled) phoneInput.focus();
+  draw();
+});
+phoneInput.addEventListener('input', (e) => {
+  state.phone = e.target.value;
+  draw();
+});
+
+const resetLayoutBtn = document.getElementById('reset-layout-btn');
+resetLayoutBtn.addEventListener('click', () => {
+  state.positions = {};
+  draw();
+});
+
+// ---- Drag-to-reposition on the canvas ----
+function canvasPointFromEvent(e){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+function hitTest(pt){
+  for (let i = hitRegions.length - 1; i >= 0; i--){
+    const r = hitRegions[i];
+    if (pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h) return r.key;
+  }
+  return null;
+}
+
+function dragStart(e){
+  const pt = canvasPointFromEvent(e);
+  const key = hitTest(pt);
+  if (!key) return;
+  e.preventDefault();
+  dragKey = key;
+  dragStartMouse = pt;
+  dragStartOffset = { ...getOffset(key) };
+  canvas.style.cursor = 'grabbing';
+}
+
+function dragMove(e){
+  const pt = canvasPointFromEvent(e);
+  if (!dragKey){
+    canvas.style.cursor = hitTest(pt) ? 'grab' : 'default';
+    return;
+  }
+  e.preventDefault();
+  const dx = dragStartOffset.dx + (pt.x - dragStartMouse.x);
+  const dy = dragStartOffset.dy + (pt.y - dragStartMouse.y);
+  state.positions[dragKey] = { dx, dy };
+  draw();
+}
+
+function dragEnd(){
+  if (dragKey) canvas.style.cursor = 'grab';
+  dragKey = null;
+  dragStartMouse = null;
+  dragStartOffset = null;
+}
+
+canvas.addEventListener('mousedown', dragStart);
+canvas.addEventListener('mousemove', dragMove);
+window.addEventListener('mouseup', dragEnd);
+canvas.addEventListener('touchstart', dragStart, { passive:false });
+canvas.addEventListener('touchmove', dragMove, { passive:false });
+window.addEventListener('touchend', dragEnd);
 
 downloadBtn.addEventListener('click', () => {
   const link = document.createElement('a');
